@@ -14,6 +14,8 @@
         "new": "cpp",
         "system_error": "cpp",
         "typeindex": "cpp",
-        "*.ipp": "cpp"
+        "*.ipp": "cpp",
+        "ranges": "cpp",
+        "*.inc": "cpp"
     }
 }

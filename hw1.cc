@@ -1,6 +1,7 @@
 #include <omp.h>
 #include <pthread.h>
 
+#include <boost/functional/hash.hpp>
 #include <fstream>
 #include <iostream>
 #include <queue>
@@ -36,45 +37,10 @@ enum Direction : char {
     NONEDIR = '\0'
 };
 Direction operator++(Direction& d);
-struct Position {
-    int row;
-    int col;
-    Position() : row(0), col(0) {}
-    Position(int r, int c) : row(r), col(c) {}
-    ~Position() {}
-    Position operator+(Direction& rhs) {
-        if (rhs == UP)
-            return Position(row - 1, col);
-        else if (rhs == DOWN)
-            return Position(row + 1, col);
-        else if (rhs == LEFT)
-            return Position(row, col - 1);
-        else if (rhs == RIGHT)
-            return Position(row, col + 1);
-        else
-            return *this;
-    }
-    Position go(Direction dir) {
-        return *this + dir;
-    }
-    Position up() {
-        return Position(row - 1, col);
-    }
-    Position down() {
-        return Position(row + 1, col);
-    }
-    Position left() {
-        return Position(row, col - 1);
-    }
-    Position right() {
-        return Position(row, col + 1);
-    }
-};
-ostream& operator<<(ostream& os, const Position& rhs);
+pair<int, int> operator+(pair<int, int> const& lhs, Direction const& rhs);
+ostream& operator<<(ostream& os, const pair<int, int>& rhs);
 class Sokoban {
    private:
-    bool static isBox(char c);
-    bool static isPly(char c);
     char static addBox(char c);
     char static rmBox(char c);
     char static addPly(char c);
@@ -82,20 +48,20 @@ class Sokoban {
 
     struct State {
        private:
-        Position ply;
+        pair<int, int> plyPos;
         string moveSequence;
         int filled;
         string data;
 
-        bool moveBox(Position pos, Direction dir);
-        void setBlk(Position pos, char c);
+        bool moveBox(pair<int, int> pos, Direction dir);
+        void setBlk(pair<int, int> pos, char c);
 
        public:
         State();
-        State(const vector<string>& obj);
+        State(const vector<string>& obj, const pair<int, int>& plyPos);
         State(const State& obj);
         ~State();
-        char getBlk(Position pos) const;
+        char getBlk(pair<int, int> pos) const;
         char getBlk(int r, int c) const;
         bool movePly(Direction dir);
         bool isdead() const;
@@ -103,7 +69,7 @@ class Sokoban {
         bool solved() const;
         void print() const;
         string getMoveSequence() const;
-        string getData() const;
+        pair<string, pair<int, int>> getData() const;
         State& operator=(const State& rhs);
 
         friend bool operator<(const State& lhs, const State& rhs);
@@ -142,13 +108,24 @@ Direction operator++(Direction& d) {
     }
     return d;
 }
+pair<int, int> operator+(pair<int, int> const& lhs, Direction const& rhs) {
+    if (rhs == UP)
+        return make_pair(lhs.first - 1, lhs.second);
+    else if (rhs == DOWN)
+        return make_pair(lhs.first + 1, lhs.second);
+    else if (rhs == LEFT)
+        return make_pair(lhs.first, lhs.second - 1);
+    else if (rhs == RIGHT)
+        return make_pair(lhs.first, lhs.second + 1);
+    else
+        return lhs;
+}
+ostream& operator<<(ostream& os, const pair<int, int>& rhs) {
+    os << "(" << rhs.first << " , " << rhs.second << ")";
+    return os;
+}
+
 // Sokoban, Private
-bool Sokoban::isBox(char c) {
-    return c == BOX || c == BOXT;
-}
-bool Sokoban::isPly(char c) {
-    return c == PLY || c == PLYT || c == PLYF;
-}
 char Sokoban::addBox(char c) {
     if (c == EMPTY)
         return BOX;
@@ -185,9 +162,8 @@ char Sokoban::rmPly(char c) {
     else
         return NONE;
 }
-
 // Sokoban::State, Private
-bool Sokoban::State::moveBox(Position pos, Direction dir) {
+bool Sokoban::State::moveBox(pair<int, int> pos, Direction dir) {
     if (addBox(getBlk(pos + dir))) {
         if (getBlk(pos) == BOXT)
             this->filled--;
@@ -199,20 +175,19 @@ bool Sokoban::State::moveBox(Position pos, Direction dir) {
     }
     return false;
 }
-void Sokoban::State::setBlk(Position pos, char c) {
-    this->data[pos.row * Cols + pos.col] = c;
+void Sokoban::State::setBlk(pair<int, int> pos, char c) {
+    this->data[pos.first * Cols + pos.second] = c;
 }
 // Sokoban::State, Public
 Sokoban::State::State() {
     this->filled = 0;
 }
-Sokoban::State::State(const vector<string>& obj) {
+Sokoban::State::State(const vector<string>& obj, const pair<int, int>& plyPos) {
     State();
+    this->plyPos = plyPos;
     for (int r = 0; r < Rows; r++) {
         this->data.append(obj[r]);
         for (int c = 0; c < Cols; c++) {
-            if (obj[r][c] == PLY || obj[r][c] == PLYT || obj[r][c] == PLYF)
-                ply = Position(r, c);
             if (obj[r][c] == BOXT)
                 filled++;
         }
@@ -222,33 +197,27 @@ Sokoban::State::State(const State& obj) {
     State();
     this->filled = obj.filled;
     this->data = obj.data;
-    this->ply = obj.ply;
+    this->plyPos = obj.plyPos;
     this->moveSequence = obj.moveSequence;
 }
 Sokoban::State::~State() {}
 bool Sokoban::State::movePly(Direction dir) {
     bool res = false;
-    // cout << "movePly, curPly pos : " << ply << "\n";
-    switch (getBlk(ply + dir)) {
+    switch (getBlk(plyPos + dir)) {
         case EMPTY:
         case TARGET:
         case FRAGILE:
-            setBlk(ply, rmPly(getBlk(ply)));
-            setBlk((ply + dir), addPly(getBlk(ply + dir)));
             res = true;
             break;
         case BOX:
         case BOXT:
-            // res = moveBox(ply + dir, dir);
-            if (addBox(getBlk(ply + dir + dir))) {
-                if (getBlk(ply + dir) == BOXT)
+            if (addBox(getBlk(plyPos + dir + dir))) {
+                if (getBlk(plyPos + dir) == BOXT)
                     this->filled--;
-                setBlk(ply + dir, rmBox(getBlk(ply + dir)));
-                setBlk(ply + dir + dir, addBox(getBlk(ply + dir + dir)));
-                if (getBlk(ply + dir + dir) == BOXT)
+                setBlk(plyPos + dir, rmBox(getBlk(plyPos + dir)));
+                setBlk(plyPos + dir + dir, addBox(getBlk(plyPos + dir + dir)));
+                if (getBlk(plyPos + dir + dir) == BOXT)
                     this->filled++;
-                setBlk(ply, rmPly(getBlk(ply)));
-                setBlk(ply + dir, addPly(getBlk(ply + dir)));
                 res = true;
             }
             break;
@@ -257,18 +226,18 @@ bool Sokoban::State::movePly(Direction dir) {
             break;
     }
     if (res) {
-        ply = ply + dir;
+        plyPos = plyPos + dir;
         moveSequence.push_back(dir);
     }
     return res;
 }
 bool Sokoban::State::isdead() const {
-    Position pos;
-    for (pos.row = 0; pos.row < Rows; pos.row++) {
-        for (pos.col = 0; pos.col < Cols; pos.col++) {
+    pair<int, int> pos;
+    for (pos.first = 0; pos.first < Rows; pos.first++) {
+        for (pos.second = 0; pos.second < Cols; pos.second++) {
             if (this->getBlk(pos) == BOX) {
-                if (this->getBlk(pos.up()) == WALL || this->getBlk(pos.down()) == WALL) {
-                    if (this->getBlk(pos.left()) == WALL || this->getBlk(pos.right()) == WALL)
+                if (this->getBlk(pos + UP) == WALL || this->getBlk(pos + DOWN) == WALL) {
+                    if (this->getBlk(pos + LEFT) == WALL || this->getBlk(pos + RIGHT) == WALL)
                         return true;
                 }
             }
@@ -286,8 +255,8 @@ int Sokoban::State::getFilled() const {
     }
     return res;
 }
-char Sokoban::State::getBlk(Position pos) const {
-    return this->data[pos.row * Cols + pos.col];
+char Sokoban::State::getBlk(pair<int, int> pos) const {
+    return this->data[pos.first * Cols + pos.second];
 }
 char Sokoban::State::getBlk(int r, int c) const {
     return this->data[r * Cols + c];
@@ -296,24 +265,27 @@ bool Sokoban::State::solved() const {
     return this->getFilled() == Targets;
 }
 void Sokoban::State::print() const {
-    cout << "ply : " << ply << "\n";
-    cout << moveSequence << "\n";
-    cout << "solved : " << (this->solved() ? "true" : "false") << "\n";
+    cout << "ply : " << plyPos << "\n";
     for (int r = 0; r < Rows; r++) {
         for (int c = 0; c < Cols; c++)
-            cout << this->getBlk(r, c);
+            if (plyPos.first == r && plyPos.second == c)
+                cout << addPly(this->getBlk(r, c));
+            else
+                cout << this->getBlk(r, c);
         cout << "\n";
     }
+    cout << moveSequence << "\n";
+    cout << "solved : " << (this->solved() ? "true" : "false") << "\n";
 }
 string Sokoban::State::getMoveSequence() const {
     return moveSequence;
 }
-string Sokoban::State::getData() const {
-    return data;
+pair<string, pair<int, int>> Sokoban::State::getData() const {
+    return make_pair(this->data, make_pair(this->plyPos.first, this->plyPos.second));
 }
 Sokoban::State& Sokoban::State::operator=(State const& rhs) {
     this->data = rhs.data;
-    this->ply = rhs.ply;
+    this->plyPos = rhs.plyPos;
     this->moveSequence = rhs.moveSequence;
     this->filled = rhs.filled;
     return *this;
@@ -328,6 +300,7 @@ Sokoban::~Sokoban() {}
 void Sokoban::getInput(char* file_path) {
     ifstream input_file;
     string input_line;
+    pair<int, int> ply;
 
     input_file.open(file_path);
     if (!input_file)
@@ -340,12 +313,18 @@ void Sokoban::getInput(char* file_path) {
     Cols = input[0].size();
 
     Targets = 0;
-    for (int r = 0; r < Rows; r++)
-        for (int c = 0; c < Cols; c++)
-            if (input[r][c] == TARGET || input[r][c] == BOXT || input[r][c] == PLYT)
+    for (int r = 0; r < Rows; r++) {
+        for (int c = 0; c < Cols; c++) {
+            if (input[r][c] == PLY || input[r][c] == PLYT || input[r][c] == PLYF) {
+                ply = make_pair(r, c);
+                input[r][c] = rmPly(input[r][c]);
+            }
+            if (input[r][c] == TARGET || input[r][c] == BOXT)
                 Targets++;
+        }
+    }
 
-    initState = State(input);
+    initState = State(input, ply);
     return;
 }
 void Sokoban::test() {
@@ -383,7 +362,7 @@ void Sokoban::manual() {
 }
 void Sokoban::bfs() {
     queue<State> statesQue;
-    unordered_set<string> statesSet;
+    unordered_set<pair<string, pair<int, int>>, boost::hash<pair<string, pair<int, int>>>> statesSet;
     statesQue.emplace(initState);
 
     while (!statesQue.empty()) {
@@ -406,11 +385,6 @@ void Sokoban::bfs() {
             }
         }
     }
-}
-
-ostream& operator<<(ostream& os, const Position& rhs) {
-    os << "(" << rhs.row << " , " << rhs.col << ")";
-    return os;
 }
 
 int main(int argc, char* argv[]) {
