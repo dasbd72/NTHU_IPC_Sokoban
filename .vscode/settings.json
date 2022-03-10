@@ -1,0 +1,19 @@
+{
+    "files.associations": {
+        "*.php": "php",
+        "*.html": "html",
+        "vector": "cpp",
+        "*.tcc": "cpp",
+        "compare": "cpp",
+        "type_traits": "cpp",
+        "random": "cpp",
+        "iosfwd": "cpp",
+        "core": "cpp",
+        "set": "cpp",
+        "iostream": "cpp",
+        "new": "cpp",
+        "system_error": "cpp",
+        "typeindex": "cpp",
+        "*.ipp": "cpp"
+    }
+}
