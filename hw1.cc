@@ -15,7 +15,10 @@ using namespace std;
 
 // =================Definition================
 int Rows, Cols, Targets;
+string initMap;
 
+typedef unordered_set<pair<int, int>, boost::hash<pair<int, int>>> Pos_Set;
+typedef pair<int, int> Position;
 enum MatrixCode : char {
     EMPTY = ' ',
     WALL = '#',
@@ -71,27 +74,32 @@ char rmPly(char c) {
     else
         return NONE;
 }
+namespace boost {
+template <class K, class C, class A>
+std::size_t hash_value(const std::unordered_set<K, C, A>& v) {
+    return boost::hash_range(v.begin(), v.end());
+}
+}  // namespace boost
 Direction operator++(Direction& d);
 pair<int, int> operator+(pair<int, int> const& lhs, Direction const& rhs);
 pair<int, int> operator-(pair<int, int> const& lhs, pair<int, int> const& rhs);
 Direction operator/(pair<int, int> const& rhs, pair<int, int> const& lhs);
 ostream& operator<<(ostream& os, const pair<int, int>& rhs);
 
-char getBlk(const string& data, pair<int, int> pos);
-char getBlk(const string& data, int r, int c);
-void setBlk(string& data, pair<int, int> pos, char c);
+char getBlk(Position pos);
+char getBlk(int r, int c);
 class Sokoban {
    public:
     class State {
        private:
-        pair<int, int> pos;
-        string data;
+        Position pos;
+        Pos_Set boxes;
         string moveSequence;
         int filled;
 
        public:
         State() {}
-        State(vector<string>& obj, pair<int, int>& pos);
+        State(Position& pos, Pos_Set& boxes);
         State(const State& obj);
         ~State() {}
         bool movePly(Direction dir);
@@ -99,11 +107,10 @@ class Sokoban {
         bool isdead() const;
         bool solved() const;
         int getFilled() const;
-        string getFlooded() const;
-        set<pair<int, int>> getFloodedPos() const;
-        string getData() const;
+        Pos_Set getFloodedPos() const;
+        Pos_Set getBoxes() const;
         string getMoveSequence() const;
-        pair<int, int> getPos() const;
+        Position getPos() const;
         void print() const;
         State& operator=(const State& rhs);
     };
@@ -179,50 +186,53 @@ ostream& operator<<(ostream& os, const pair<int, int>& rhs) {
     return os;
 }
 
-char getBlk(const string& data, pair<int, int> pos) {
-    return data[pos.first * Cols + pos.second];
+char getBlk(Position pos) {
+    return initMap[pos.first * Cols + pos.second];
 }
-char getBlk(const string& data, int r, int c) {
-    return data[r * Cols + c];
-}
-void setBlk(string& data, pair<int, int> pos, char c) {
-    data[pos.first * Cols + pos.second] = c;
+char getBlk(int r, int c) {
+    return initMap[r * Cols + c];
 }
 
-Sokoban::State::State(vector<string>& obj, pair<int, int>& pos) {
+Sokoban::State::State(Position& pos, Pos_Set& boxes) {
     this->filled = 0;
     this->pos = pos;
-    for (int r = 0; r < Rows; r++) {
-        this->data.append(obj[r]);
-        for (int c = 0; c < Cols; c++) {
-            if (obj[r][c] == BOXT)
-                this->filled++;
-        }
+    this->boxes = boxes;
+    for (auto boxPos : this->boxes) {
+        if (getBlk(boxPos) == TARGET)
+            this->filled++;
     }
 }
 Sokoban::State::State(const State& obj) {
-    this->data = obj.data;
+    this->boxes = obj.boxes;
     this->pos = obj.pos;
     this->moveSequence = obj.moveSequence;
     this->filled = obj.filled;
 }
+Sokoban::State& Sokoban::State::operator=(State const& rhs) {
+    this->boxes = rhs.boxes;
+    this->pos = rhs.pos;
+    this->moveSequence = rhs.moveSequence;
+    this->filled = rhs.filled;
+    return *this;
+}
 bool Sokoban::State::movePly(Direction dir) {
+    Position nxtPos = this->pos + dir;
     bool res = false;
-    switch (getBlk(this->data, this->pos + dir)) {
+    switch (getBlk(nxtPos)) {
         case EMPTY:
         case TARGET:
         case FRAGILE:
-            res = true;
-            break;
-        case BOX:
-        case BOXT:
-            if (addBox(getBlk(this->data, this->pos + dir + dir))) {
-                if (getBlk(this->data, this->pos + dir) == BOXT)
-                    this->filled--;
-                setBlk(this->data, this->pos + dir, rmBox(getBlk(this->data, this->pos + dir)));
-                setBlk(this->data, this->pos + dir + dir, addBox(getBlk(this->data, this->pos + dir + dir)));
-                if (getBlk(this->data, this->pos + dir + dir) == BOXT)
-                    this->filled++;
+            if (this->boxes.find(nxtPos) != this->boxes.end()) {
+                if (getBlk(nxtPos + dir) != FRAGILE && getBlk(nxtPos + dir) != WALL && this->boxes.find(nxtPos + dir) == this->boxes.end()) {
+                    this->boxes.erase(nxtPos);
+                    this->boxes.emplace(nxtPos + dir);
+                    res = true;
+                    if (getBlk(nxtPos + dir) == TARGET)
+                        this->filled++;
+                    if (getBlk(nxtPos) == TARGET)
+                        this->filled--;
+                }
+            } else {
                 res = true;
             }
             break;
@@ -238,44 +248,43 @@ bool Sokoban::State::movePly(Direction dir) {
 }
 vector<Sokoban::State> Sokoban::State::nextStates() {
     vector<State> res;
-    queue<pair<pair<int, int>, string>> que;
-    unordered_set<pair<int, int>, boost::hash<pair<int, int>>> posSet;
+    queue<pair<Position, string>> que;
+    Pos_Set posSet;
     State nxtState;
     que.emplace(pos, "");
     while (!que.empty()) {
         auto [curPos, curSeq] = que.front();
         que.pop();
         posSet.emplace(curPos);
-        pair<int, int> nxtPos;
+        Position nxtPos;
         string nxtSeq;
         for (Direction dir = UP; dir != NONEDIR; ++dir) {
             nxtPos = curPos + dir;
             nxtSeq = curSeq + (char)dir;
             if (posSet.find(nxtPos) != posSet.end())
                 continue;
-            if (getBlk(this->data, nxtPos) == BOX || getBlk(this->data, nxtPos) == BOXT) {
+            if (this->boxes.find(nxtPos) != this->boxes.end()) {
                 nxtState = *this;
                 nxtState.pos = curPos;
                 nxtState.moveSequence.append(curSeq);
-                if (nxtState.movePly(dir))
+
+                if (nxtState.movePly(dir)) {
                     res.emplace_back(nxtState);
+                }
             }
-            if (addPly(getBlk(this->data, nxtPos)))
+            if (addPly(getBlk(nxtPos)) && this->boxes.find(nxtPos) == this->boxes.end())
                 que.emplace(nxtPos, nxtSeq);
         }
     }
     return res;
 }
 bool Sokoban::State::isdead() const {
-    pair<int, int> pos;
-    for (pos.first = 0; pos.first < Rows; pos.first++) {
-        for (pos.second = 0; pos.second < Cols; pos.second++) {
-            if (getBlk(this->data, pos) == BOX) {
-                if (getBlk(this->data, pos + UP) == WALL || getBlk(this->data, pos + DOWN) == WALL) {
-                    if (getBlk(this->data, pos + LEFT) == WALL || getBlk(this->data, pos + RIGHT) == WALL)
-                        return true;
-                }
-            }
+    for (auto boxPos : this->boxes) {
+        if (getBlk(boxPos) == TARGET)
+            continue;
+        if (getBlk(boxPos + UP) == WALL || getBlk(boxPos + DOWN) == WALL) {
+            if (getBlk(boxPos + LEFT) == WALL || getBlk(boxPos + RIGHT) == WALL)
+                return true;
         }
     }
     return false;
@@ -285,86 +294,57 @@ bool Sokoban::State::solved() const {
 }
 int Sokoban::State::getFilled() const {
     return this->filled;
-    // int res = 0;
-    // for (int r = 0; r < Rows; r++) {
-    //     for (int c = 0; c < Cols; c++) {
-    //         if (getBlk(this->data, r, c) == BOXT)
-    //             res++;
-    //     }
-    // }
-    // return res;
 }
-string Sokoban::State::getFlooded() const {
-    string res(this->data.size(), 0);
-    queue<pair<int, int>> que;
+Pos_Set Sokoban::State::getFloodedPos() const {
+    Pos_Set res;
+    queue<Position> que;
     que.emplace(this->pos);
     while (!que.empty()) {
-        pair<int, int> curPos = que.front();
-        que.pop();
-        setBlk(res, curPos, 'o');
-        // cout << curPos << " ? \n";
-        for (Direction dir = UP; dir != NONEDIR; ++dir) {
-            pair<int, int> nxtPos = curPos + dir;
-            if (getBlk(res, nxtPos))
-                continue;
-            if (addPly(getBlk(this->data, nxtPos)))
-                que.emplace(nxtPos);
-        }
-    }
-    return res;
-}
-set<pair<int, int>> Sokoban::State::getFloodedPos() const {
-    set<pair<int, int>> res;
-    queue<pair<int, int>> que;
-    que.emplace(this->pos);
-    while (!que.empty()) {
-        pair<int, int> curPos = que.front();
+        Position curPos = que.front();
         que.pop();
         res.emplace(curPos);
         for (Direction dir = UP; dir != NONEDIR; ++dir) {
-            pair<int, int> nxtPos = curPos + dir;
+            Position nxtPos = curPos + dir;
             if (res.find(nxtPos) != res.end())
                 continue;
-            if (addPly(getBlk(this->data, nxtPos)))
+            if (addPly(getBlk(nxtPos)) && this->boxes.find(nxtPos) == this->boxes.end())
                 que.emplace(nxtPos);
         }
     }
     return res;
 }
-
-string Sokoban::State::getData() const {
-    return this->data;
+Pos_Set Sokoban::State::getBoxes() const {
+    return this->boxes;
 }
 string Sokoban::State::getMoveSequence() const {
     return this->moveSequence;
 }
-pair<int, int> Sokoban::State::getPos() const {
+Position Sokoban::State::getPos() const {
     return this->pos;
 }
 void Sokoban::State::print() const {
     cout << "ply:" << pos << "\n";
     cout << "solved:" << (this->solved() ? "true" : "false") << "\n";
+    cout << "filled:" << this->filled << "\n";
+    for (auto boxPos : this->boxes) cout << boxPos << " ";
+    cout << "\n";
     for (int r = 0; r < Rows; r++) {
         for (int c = 0; c < Cols; c++)
             if (pos.first == r && pos.second == c)
-                cout << addPly(getBlk(this->data, r, c));
+                cout << addPly(getBlk(r, c));
+            else if (boxes.find(make_pair(r, c)) != boxes.end())
+                cout << addBox(getBlk(r, c));
             else
-                cout << getBlk(this->data, r, c);
+                cout << getBlk(r, c);
         cout << "\n";
     }
-}
-Sokoban::State& Sokoban::State::operator=(State const& rhs) {
-    this->data = rhs.data;
-    this->pos = rhs.pos;
-    this->moveSequence = rhs.moveSequence;
-    this->filled = rhs.filled;
-    return *this;
 }
 
 void Sokoban::getInput(char* file_path) {
     ifstream input_file;
     string input_line;
-    pair<int, int> ply;
+    Position ply;
+    Pos_Set boxes;
 
     input_file.open(file_path);
     if (!input_file)
@@ -383,36 +363,35 @@ void Sokoban::getInput(char* file_path) {
                 ply = make_pair(r, c);
                 input[r][c] = rmPly(input[r][c]);
             }
-            if (input[r][c] == TARGET || input[r][c] == BOXT)
+            if (input[r][c] == BOX || input[r][c] == BOXT) {
+                boxes.emplace(r, c);
+                input[r][c] = rmBox(input[r][c]);
+            }
+            if (input[r][c] == TARGET)
                 Targets++;
         }
+        initMap.append(input[r]);
     }
-    // cout << "[DEBUG]Targets:" << Targets << "\n";
-
-    initState = State(input, ply);
+    initState = State(ply, boxes);
     return;
 }
 void Sokoban::bfs() {
     priority_queue<State, vector<State>, StateCmp> statesQue;
-    map<string, set<pair<int, int>>> statesMap;
+    unordered_map<Pos_Set, Pos_Set, boost::hash<Pos_Set>> statesMap;
     statesQue.emplace(initState);
-
-    // initState.print();
 
     while (!statesQue.empty()) {
         auto curState = statesQue.top();
         statesQue.pop();
-        statesMap[curState.getData()] = curState.getFloodedPos();
+        statesMap.emplace(curState.getBoxes(), curState.getFloodedPos());
         auto nextStates = curState.nextStates();
-        // cout << "[DEBUG] After nextStates\n";
         for (auto nxtState : nextStates) {
             if (nxtState.isdead())
                 continue;
-            if (statesMap.find(nxtState.getData()) != statesMap.end() && statesMap[nxtState.getData()].find(nxtState.getPos()) != statesMap[nxtState.getData()].end())
+            if (statesMap.find(nxtState.getBoxes()) != statesMap.end() && statesMap[nxtState.getBoxes()].find(nxtState.getPos()) != statesMap[nxtState.getBoxes()].end()) {
                 continue;
-
+            }
             if (nxtState.solved()) {
-                // cout << "[DEBUG] Solving...\n";
                 cout << nxtState.getMoveSequence() << "\n";
                 return;
             } else {
