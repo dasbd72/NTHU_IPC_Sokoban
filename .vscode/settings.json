@@ -27,6 +27,10 @@
         "string_view": "cpp",
         "initializer_list": "cpp",
         "valarray": "cpp",
-        "deque": "cpp"
+        "deque": "cpp",
+        "list": "cpp",
+        "unordered_map": "cpp",
+        "unordered_set": "cpp",
+        "optional": "cpp"
     }
 }
