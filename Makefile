@@ -1,5 +1,6 @@
 CXX = g++
-CXXFLAGS = -std=c++17 -O3 -pthread -fopenmp
+# CXXFLAGS = -std=c++17 -O3 -pthread -fopenmp -ltbb  -fsanitize=address
+CXXFLAGS = -std=c++17 -O3 -pthread -fopenmp -ltbb
 TARGETS = hw1
 
 .PHONY: all

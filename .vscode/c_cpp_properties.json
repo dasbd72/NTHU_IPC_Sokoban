@@ -6,7 +6,8 @@
       "includePath": [
         "${workspaceRoot}",
         "/usr/include",
-        "/usr/include/c++"
+        "/usr/include/c++",
+        "/usr/include/tbb"
       ],
       "compilerPath": "/usr/bin/g++",
       "cppStandard": "c++17"
