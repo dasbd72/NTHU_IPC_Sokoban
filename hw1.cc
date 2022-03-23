@@ -19,12 +19,6 @@
 using namespace std;
 using namespace tbb;
 
-// g++ -std=c++17 -O3 -pthread -fopenmp -ltbb -Wall -Wextra -fsanitize=address -g hw1.cc -o hw1; time ./hw1 samples/10.txt
-// make ; srun -c6 ./hw1 01.txt
-// make; time ./hw1 samples/25.txt > 25.txt
-// g++ -std=c++17 -O3 -pthread -fopenmp -ltbb -Wall -Wextra -fsanitize=address -g hw1.cc -o hw1; time ./hw1 samples/06.txt > hw1.txt
-// g++ -std=c++17 -O3 -pthread -fopenmp -ltbb -Wall -Wextra -g hw1.cc -o hw1; time ./hw1 test.txt
-
 // =================Definition================
 typedef unordered_set<pair<int, int>, boost::hash<pair<int, int>>> Pos_Set;
 typedef pair<int, int> Position;
@@ -33,8 +27,6 @@ typedef bitset<256> bs256;
 int Rows, Cols;
 vector<Position> Targets;
 string initMap;
-// map<Position, array<int, 256>> distScoreMap;
-// array<int, 256> distScoreMap;
 array<array<int, 256>, 256> to1DArray;
 array<int, 256> zobrist;
 map<pair<int, int>, vector<set<Position>>> deadPointsArray;
@@ -143,8 +135,6 @@ char toKey(size_t dir) {
     }
 }
 pair<int, int> operator+(pair<int, int> const& lhs, size_t const& rhs);
-// pair<int, int> operator-(pair<int, int> const& lhs, pair<int, int> const& rhs);
-// size_t operator/(pair<int, int> const& rhs, pair<int, int> const& lhs);
 ostream& operator<<(ostream& os, const pair<int, int>& rhs);
 
 char const& getBlk(Position const& pos);
@@ -155,18 +145,16 @@ class Sokoban {
    public:
     class State {
        private:
-        // TODO : new variable
         Position pos;
         bs256 boxMap;
         bs256 wallMap;
         string moveSequence;
         int filled;
-        // int distScore;
         bool dead;
         int hashValue;
 
        public:
-        State() : filled(0), /*  distScore(0), */ dead(false), hashValue(0) {}  // TODO : new variable
+        State() : filled(0), dead(false), hashValue(0) {}
         State(Position const& pos, bs256 const& boxMap);
         State(State const& obj);
         ~State() {}
@@ -176,7 +164,6 @@ class Sokoban {
         bool solved() const;
         bool isDead() const;
         int const& getFilled() const;
-        // int getDistScore() const;
         bs256 getFloodedMap() const;
         bs256 const& getBoxMap() const;
         int const& getHashValue() const;
@@ -194,20 +181,12 @@ class Sokoban {
                 return false;
             else {
                 return false;
-                // return lhs.getDistScore() < rhs.getDistScore();
-                // if (lhs.getDistScore() < rhs.getDistScore())
-                //     return true;
-                // else if (lhs.getDistScore() > rhs.getDistScore())
-                //     return false;
-                // else
-                //     return false;
             }
         }
     };
     Sokoban() {}
     ~Sokoban() {}
     void getInput(char* file_path);
-    void test();
     string bfs();
     string parallel_bfs();
 
@@ -228,25 +207,6 @@ pair<int, int> operator+(pair<int, int> const& lhs, size_t const& rhs) {
     else
         return lhs;
 }
-// pair<int, int> operator-(pair<int, int> const& lhs, pair<int, int> const& rhs) {
-//     pair<int, int> delt;
-//     delt.first = rhs.first - lhs.first;
-//     delt.second = rhs.second - lhs.second;
-//     return delt;
-// }
-// size_t operator/(pair<int, int> const& rhs, pair<int, int> const& lhs) {
-//     auto delt = rhs - lhs;
-//     if (delt == make_pair(-1, 0))
-//         return 0;
-//     else if (delt == make_pair(1, 0))
-//         return UP;
-//     else if (delt == make_pair(0, -1))
-//         return DOWN;
-//     else if (delt == make_pair(0, 1))
-//         return LEFT;
-//     else
-//         return RIGHT;
-// }
 ostream& operator<<(ostream& os, const pair<int, int>& rhs) {
     os << "(" << rhs.first << " , " << rhs.second << ")";
     return os;
@@ -263,11 +223,9 @@ size_t to1D(Position const& pos) {
 }
 size_t to1D(int const& r, int const& c) {
     return to1DArray[r][c];
-    // return r * Cols + c;
 }
 
 Sokoban::State::State(Position const& pos, bs256 const& boxMap) : State() {
-    // TODO : new variable
     this->pos = pos;
     this->boxMap = boxMap;
     for (int r = 0; r < Rows; r++) {
@@ -285,25 +243,6 @@ Sokoban::State::State(Position const& pos, bs256 const& boxMap) : State() {
             }
         }
     }
-    // for (int r = 0; r < Rows; r++) {
-    //     for (int c = 0; c < Cols; c++) {
-    //         if (this->boxMap[to1D(r, c)]) {
-    //             this->distScore += distScoreMap[to1D(r, c)];
-    //         }
-    //     }
-    // }
-    // for (int r = 0; r < Rows; r++) {
-    //     for (int c = 0; c < Cols; c++) {
-    //         if (this->boxMap[to1D(r, c)]) {
-    //             int mintmp = 0x7fffffff;
-    //             for (auto targetpos : Targets) {
-    //                 if (!this->boxMap[to1D(targetpos)])
-    //                     mintmp = min(mintmp, distScoreMap[targetpos][to1D(r, c)]);
-    //             }
-    //             this->distScore += mintmp;
-    //         }
-    //     }
-    // }
     for (int r = 0; r < Rows; r++) {
         for (int c = 0; c < Cols; c++) {
             if (getBlk(r, c) == WALL)
@@ -312,7 +251,6 @@ Sokoban::State::State(Position const& pos, bs256 const& boxMap) : State() {
     }
 }
 Sokoban::State::State(State const& obj) {
-    // TODO : new variable
     this->boxMap = obj.boxMap;
     this->wallMap = obj.wallMap;
     this->hashValue = obj.hashValue;
@@ -320,10 +258,8 @@ Sokoban::State::State(State const& obj) {
     this->moveSequence = obj.moveSequence;
     this->filled = obj.filled;
     this->dead = obj.dead;
-    // this->distScore = obj.distScore;
 }
 Sokoban::State& Sokoban::State::operator=(State const& rhs) {
-    // TODO : new variable
     this->boxMap = rhs.boxMap;
     this->wallMap = rhs.wallMap;
     this->hashValue = rhs.hashValue;
@@ -331,7 +267,6 @@ Sokoban::State& Sokoban::State::operator=(State const& rhs) {
     this->moveSequence = rhs.moveSequence;
     this->filled = rhs.filled;
     this->dead = rhs.dead;
-    // this->distScore = rhs.distScore;
     return *this;
 }
 bool Sokoban::State::canMovePly(Position const& curpos, int const& dir) const {
@@ -370,20 +305,6 @@ void Sokoban::State::movePly(int const& dir) {
                     this->filled++;
                 this->hashValue ^= zobrist[to1D(nxtPos)];
                 this->hashValue ^= zobrist[to1D(nnxtPos)];
-
-                // this->distScore += distScoreMap[to1D(nnxtPos)] - distScoreMap[to1D(nxtPos)];
-                // int mintmp = 0x7fffffff;
-                // for (auto targetpos : Targets) {
-                //     if (!this->boxMap[to1D(targetpos)])
-                //         mintmp = min(mintmp, distScoreMap[targetpos][to1D(nxtPos)]);
-                // }
-                // this->distScore -= mintmp;
-                // mintmp = 0x7fffffff;
-                // for (auto targetpos : Targets) {
-                //     if (!this->boxMap[to1D(targetpos)])
-                //         mintmp = min(mintmp, distScoreMap[targetpos][to1D(nnxtPos)]);
-                // }
-                // this->distScore += mintmp;
 
                 if (getBlk(nnxtPos + UP) == WALL || getBlk(nnxtPos + DOWN) == WALL) {
                     if (getBlk(nnxtPos + LEFT) == WALL || getBlk(nnxtPos + RIGHT) == WALL)
@@ -448,10 +369,8 @@ void Sokoban::State::movePly(int const& dir) {
 vector<Sokoban::State*> Sokoban::State::nextStates() const {
     vector<State*> res;
     queue<pair<Position, string>> que;
-    // queue<pair<Position, vector<bool>>> que;
     bs256 went;
     que.emplace(pos, "");
-    // que.emplace(pos, vector<bool>());
     went[to1D(pos)] = 1;
 
     while (!que.empty()) {
@@ -461,9 +380,6 @@ vector<Sokoban::State*> Sokoban::State::nextStates() const {
         for (size_t dir = UP; dir < STOP; dir++) {
             Position nxtPos = curPos + dir;
             string nxtSeq = curSeq + toKey(dir);
-            // vector<bool> nxtSeq = curSeq;
-            // nxtSeq.emplace_back((dir & 1 << 1) ? 1 : 0);
-            // nxtSeq.emplace_back((dir & 1) ? 1 : 0);
             if (!went[to1D(nxtPos)]) {
                 if (this->boxMap[to1D(nxtPos)]) {
                     if (this->canMovePly(curPos, dir)) {
@@ -489,59 +405,11 @@ bool Sokoban::State::solved() const {
     return this->getFilled() == (int)Targets.size();
 }
 bool Sokoban::State::isDead() const {
-    // return this->dead;
-
-    if (this->dead)
-        return true;
-    int range_box_cnt = 0;
-    int range_target_cnt = 0;
-
-    queue<Position> que;
-    bs256 went;
-    que.emplace(this->pos);
-    went[to1D(this->pos)] = 1;
-
-    while (!que.empty()) {
-        auto curpos = que.front();
-        que.pop();
-        if (this->boxMap[to1D(curpos)])
-            range_box_cnt++;
-        if (getBlk(curpos) == TARGET) {
-            // cout << curpos << ".\n";
-            range_target_cnt++;
-        }
-        for (size_t dir = UP; dir <= RIGHT; dir++) {
-            if (!went[to1D(curpos + dir)]) {
-                if (/* getBlk(curpos + dir) != WALL */ !this->wallMap[to1D(curpos + dir)]) {
-                    went[to1D(curpos + dir)] = 1;
-                    que.emplace(curpos + dir);
-                }
-            }
-        }
-    }
-    return range_box_cnt != range_target_cnt;
+    return this->dead;
 }
 int const& Sokoban::State::getFilled() const {
     return this->filled;
 }
-// int Sokoban::State::getDistScore() const {
-//     return this->distScore;
-//     // int res = 1;
-//     // for (int r = 0; r < Rows; r++) {
-//     //     for (int c = 0; c < Cols; c++) {
-//     //         if (this->boxMap[to1D(r, c)]) {
-//     //             int mintmp = 0x7fffffff;
-//     //             for (auto targetpos : Targets) {
-//     //                 if (!this->boxMap[to1D(targetpos)])
-//     //                     mintmp = min(mintmp, distScoreMap[targetpos][to1D(r, c)]);
-//     //             }
-//     //             res *= mintmp;
-//     //         }
-//     //     }
-//     // }
-//     // return res;
-// }
-
 bs256 Sokoban::State::getFloodedMap() const {
     bs256 went;
     queue<Position> que;
@@ -574,21 +442,6 @@ string Sokoban::State::getMoveSequence() const {
 Position const& Sokoban::State::getPos() const {
     return this->pos;
 }
-void Sokoban::State::print() const {
-    cout << "ply:" << this->pos << "\n";
-    cout << "solved:" << (this->solved() ? "true" : "false") << "\n";
-    for (int r = 0; r < Rows; r++) {
-        for (int c = 0; c < Cols; c++)
-            if (this->pos.first == r && this->pos.second == c)
-                cout << addPly(getBlk(r, c));
-            else if (this->boxMap[to1D(r, c)])
-                cout << addBox(getBlk(r, c));
-            else
-                cout << getBlk(r, c);
-        cout << "\n";
-    }
-}
-
 void Sokoban::getInput(char* file_path) {
     ifstream input_file;
     string input_line;
@@ -633,33 +486,6 @@ void Sokoban::getInput(char* file_path) {
         }
         initMap.append(input[r]);
     }
-    // Build distance score
-    // for (int i = 0; i < Rows * Cols; i++) distScoreMap[i] = 1;
-    // for (int r = 0; r < Rows; r++) {
-    //     for (int c = 0; c < Cols; c++) {
-    //         if (getBlk(r, c) == TARGET) {
-    //             queue<pair<Position, int>> que;
-    //             bs256 went;
-    //             que.emplace(Position(r, c), 0);
-    //             went[to1D(r, c)] = 1;
-    //             while (!que.empty()) {
-    //                 auto [curpos, curdist] = que.front();
-    //                 que.pop();
-    //                 distScoreMap[to1D(curpos)] *= curdist;
-    //                 // distScoreMap[curpos][to1D(curpos)] = curdist;
-    //                 for (size_t dir = UP; dir < STOP; dir++) {
-    //                     // cout << curpos << "\n";
-    //                     if (!went[to1D(curpos + dir)]) {
-    //                         went[to1D(curpos + dir)] = 1;
-    //                         if (getBlk(curpos + dir) == EMPTY)
-    //                             que.emplace(curpos + dir, curdist + 1);
-    //                     }
-    //                 }
-    //             }
-    //         }
-    //     }
-    // }
-
     // Build dead points array
     for (auto deadMask : deadMasks) {
         for (int row = 0; row < Rows - deadMask.size() + 1; row++) {
@@ -724,10 +550,6 @@ void Sokoban::getInput(char* file_path) {
     initState = State(ply, boxMap);
     return;
 }
-void Sokoban::test() {
-    State* s(&initState);
-    s->print();
-}
 string Sokoban::bfs() {
     string ans;
     bool solved = false;
@@ -773,7 +595,7 @@ string Sokoban::parallel_bfs() {
 
     while (!statesQue.empty() && !solved) {
         int maxThreads = min((int)statesQue.size(), 6);
-#pragma omp parallel for schedule(static) num_threads(maxThreads)
+#pragma omp parallel for schedule(dynamic) num_threads(maxThreads)
         for (int i = 0; i < maxThreads; i++) {
             State* currState;
             statesQue.try_pop(currState);
@@ -811,8 +633,6 @@ int main(int argc, char* argv[]) {
     srand(time(NULL));
     Sokoban sokoban;
     sokoban.getInput(argv[1]);
-    // sokoban.test();
-    // cout << sokoban.bfs() << "\n";
     cout << sokoban.parallel_bfs() << "\n";
     return 0;
 }
